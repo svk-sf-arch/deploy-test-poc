@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Request_Type__c</fullName>
+    <label>Request Type</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Access Request</fullName>
+                <default>false</default>
+                <label>Access Request</label>
+            </value>
+            <value>
+                <fullName>Data Change</fullName>
+                <default>false</default>
+                <label>Data Change</label>
+            </value>
+            <value>
+                <fullName>Configuration Change</fullName>
+                <default>false</default>
+                <label>Configuration Change</label>
+            </value>
+            <value>
+                <fullName>Integration Issue</fullName>
+                <default>false</default>
+                <label>Integration Issue</label>
+            </value>
+            <value>
+                <fullName>Production Support</fullName>
+                <default>false</default>
+                <label>Production Support</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

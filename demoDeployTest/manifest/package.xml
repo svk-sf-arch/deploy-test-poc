@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>Bedrock_Request__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>Bedrock_Request__c.Request_Type__c</members>
+        <members>Bedrock_Request__c.Priority__c</members>
+        <members>Bedrock_Request__c.Status__c</members>
+        <members>Bedrock_Request__c.Description__c</members>
+        <members>Bedrock_Request__c.Reviewed_By_Automation__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>BedrockRequestPriorityService</members>
+        <members>BedrockRequestPriorityServiceTest</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>Bedrock_Request_Priority_Review</members>
+        <name>Flow</name>
+    </types>
+    <types>
+        <members>Bedrock_Request_User</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>62.0</version>
+</Package>

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <actionCalls>
+        <name>Evaluate_Bedrock_Request_Priority_Action_1</name>
+        <label>Evaluate Bedrock Request Priority Action 1</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <actionName>BedrockRequestPriorityService</actionName>
+        <actionType>apex</actionType>
+        <connector>
+            <targetReference>Review_Required</targetReference>
+        </connector>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>priority</name>
+            <value>
+                <elementReference>$Record.Priority__c</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>BedrockRequestPriorityService</nameSegment>
+        <offset>0</offset>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </actionCalls>
+    <apiVersion>68.0</apiVersion>
+    <decisions>
+        <name>Review_Required</name>
+        <label>Review Required?</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <defaultConnectorLabel>No Review Required</defaultConnectorLabel>
+        <rules>
+            <name>Yes_Review_Required</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>Evaluate_Bedrock_Request_Priority_Action_1.requiresReview</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Update_Request_for_Review</targetReference>
+            </connector>
+            <label>Yes - Review Required</label>
+        </rules>
+    </decisions>
+    <description>Evaluates newly created Bedrock Requests using Apex priority rules and automatically routes High and Critical priority requests for review.</description>
+    <environments>Default</environments>
+    <interviewLabel>Bedrock Request Priority Review {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Bedrock Request Priority Review</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>OriginBuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>AutoLaunchedFlow</processType>
+    <recordUpdates>
+        <name>Update_Request_for_Review</name>
+        <label>Update Request for Review</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <inputAssignments>
+            <field>Reviewed_By_Automation__c</field>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>Status__c</field>
+            <value>
+                <stringValue>Needs Review</stringValue>
+            </value>
+        </inputAssignments>
+        <inputReference>$Record</inputReference>
+    </recordUpdates>
+    <start>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Evaluate_Bedrock_Request_Priority_Action_1</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Status__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <stringValue>New</stringValue>
+            </value>
+        </filters>
+        <object>Bedrock_Request__c</object>
+        <recordTriggerType>Create</recordTriggerType>
+        <triggerType>RecordAfterSave</triggerType>
+    </start>
+    <status>Active</status>
+</Flow>
