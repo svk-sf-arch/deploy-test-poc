@@ -1,0 +1,146 @@
+name: Deploy merged changes to target org
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+concurrency:
+  group: deploy-target-org
+  cancel-in-progress: false
+
+env:
+  PROJECT_DIR: demoDeployTest
+  DELTA_DIR: changed-sources
+
+jobs:
+  deploy:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    environment: TargetDemoOrg
+
+    steps:
+      - name: Checkout merge commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Salesforce CLI and sfdx-git-delta
+        run: |
+          npm install --global @salesforce/cli
+          echo y | sf plugins install sfdx-git-delta
+          sf version
+          sf plugins
+
+      - name: Authenticate to target org
+        env:
+          SFDX_AUTH_URL: ${{ secrets.TARGET_ORG_SFDX_AUTH_URL }}
+        run: |
+          if [ -z "$SFDX_AUTH_URL" ]; then
+            echo "::error::Secret TARGET_ORG_SFDX_AUTH_URL is not set"
+            exit 1
+          fi
+          echo "$SFDX_AUTH_URL" > ./authurl.txt
+          sf org login sfdx-url --sfdx-url-file ./authurl.txt --alias targetOrg --set-default
+          rm -f ./authurl.txt
+
+      - name: Generate delta package.xml
+        run: |
+          mkdir -p "$DELTA_DIR"
+          sf sgd source delta \
+            --from "${{ github.event.pull_request.base.sha }}" \
+            --to "${{ github.event.pull_request.merge_commit_sha }}" \
+            --repo-dir . \
+            --source-dir "$PROJECT_DIR/force-app" \
+            --output-dir "$DELTA_DIR" \
+            --api-version 66.0
+          echo "----- package.xml -----"
+          cat "$DELTA_DIR/package/package.xml"
+          echo "----- destructiveChanges.xml -----"
+          cat "$DELTA_DIR/destructiveChanges/destructiveChanges.xml"
+
+      - name: Determine deploy scope and test level
+        id: scope
+        run: |
+          python3 - <<'EOF'
+          import os, xml.etree.ElementTree as ET
+
+          ns = {"m": "http://soap.sforce.com/2006/04/metadata"}
+          delta = os.environ["DELTA_DIR"]
+
+          def members(path):
+              found = {}
+              for t in ET.parse(path).getroot().findall("m:types", ns):
+                  name = t.find("m:name", ns).text
+                  found[name] = [m.text for m in t.findall("m:members", ns)]
+              return found
+
+          pkg = members(f"{delta}/package/package.xml")
+          destructive = members(f"{delta}/destructiveChanges/destructiveChanges.xml")
+
+          apex_changed = any(k in pkg for k in ("ApexClass", "ApexTrigger"))
+          tests = sorted(
+              c for c in pkg.get("ApexClass", [])
+              if c.lower().endswith("test") or c.lower().endswith("_test")
+          )
+          if not apex_changed:
+              level, tests_arg = "NoTestRun", ""
+          elif tests:
+              level, tests_arg = "RunSpecifiedTests", " ".join(tests)
+          else:
+              level, tests_arg = "RunLocalTests", ""
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"has_changes={'true' if pkg else 'false'}\n")
+              out.write(f"has_destructive={'true' if destructive else 'false'}\n")
+              out.write(f"test_level={level}\n")
+              out.write(f"tests={tests_arg}\n")
+
+          print(f"Components to deploy: {sum(map(len, pkg.values()))}")
+          print(f"Components to delete: {sum(map(len, destructive.values()))}")
+          print(f"Test level: {level} {tests_arg}")
+          EOF
+
+      - name: Dry run (validate) deployment
+        if: steps.scope.outputs.has_changes == 'true' || steps.scope.outputs.has_destructive == 'true'
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          ARGS=(--manifest "../$DELTA_DIR/package/package.xml" --target-org targetOrg --test-level "${{ steps.scope.outputs.test_level }}" --wait 120 --verbose)
+          if [ "${{ steps.scope.outputs.has_destructive }}" = "true" ]; then
+            ARGS+=(--post-destructive-changes "../$DELTA_DIR/destructiveChanges/destructiveChanges.xml")
+          fi
+          if [ -n "${{ steps.scope.outputs.tests }}" ]; then
+            for t in ${{ steps.scope.outputs.tests }}; do ARGS+=(--tests "$t"); done
+          fi
+          sf project deploy start --dry-run "${ARGS[@]}"
+
+      - name: Deploy
+        if: steps.scope.outputs.has_changes == 'true' || steps.scope.outputs.has_destructive == 'true'
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          ARGS=(--manifest "../$DELTA_DIR/package/package.xml" --target-org targetOrg --test-level "${{ steps.scope.outputs.test_level }}" --wait 120 --verbose)
+          if [ "${{ steps.scope.outputs.has_destructive }}" = "true" ]; then
+            ARGS+=(--post-destructive-changes "../$DELTA_DIR/destructiveChanges/destructiveChanges.xml")
+          fi
+          if [ -n "${{ steps.scope.outputs.tests }}" ]; then
+            for t in ${{ steps.scope.outputs.tests }}; do ARGS+=(--tests "$t"); done
+          fi
+          sf project deploy start "${ARGS[@]}"
+
+      - name: Nothing to deploy
+        if: steps.scope.outputs.has_changes != 'true' && steps.scope.outputs.has_destructive != 'true'
+        run: echo "No Salesforce metadata changes under $PROJECT_DIR/force-app in this pull request."
+
+      - name: Upload delta manifests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: delta-manifests
+          path: ${{ env.DELTA_DIR }}
+          if-no-files-found: ignore
