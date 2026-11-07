@@ -1,3 +1,4 @@
+//Description: The class helps to set the priority service
 public with sharing class BedrockRequestPriorityService {
 
     public class PriorityRequest {
