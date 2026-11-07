@@ -11,6 +11,7 @@ A documentation folder tracks work as it happens.
 - ACTIONS.txt is the running log of each action.
 - SUMMARY.txt is this plain-text summary.
 - SUMMARY.md is the same summary in markdown, kept for git.
+- DEPLOYMENT_PIPELINE.txt / .md / .html / .docx is the full write-up of the deployment pipeline in four formats.
 
 Current status
-Documentation tracking is in place. No application code has been changed.
+A GitHub Actions workflow deploys changed Salesforce components to TargetDemoOrg whenever a pull request is merged into main. The Bedrock Request feature has been deployed through it, and all its Apex tests pass. See DEPLOYMENT_PIPELINE.txt for details and open items.

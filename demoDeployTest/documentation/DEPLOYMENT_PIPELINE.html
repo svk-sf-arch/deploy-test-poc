@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salesforce delta deployment pipeline</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2330;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-2: #a371f7;
+    --ok: #3fb950;
+    --fail: #f85149;
+    --warn: #d29922;
+    --code-bg: #0b0f14;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    margin: 0;
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 40px 64px;
+  }
+
+  header.cover {
+    background: linear-gradient(135deg, #1f2a44 0%, #2a1f44 100%);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px 36px;
+    margin-bottom: 36px;
+  }
+
+  header.cover h1 {
+    margin: 0 0 6px;
+    font-size: 30px;
+    letter-spacing: -0.3px;
+  }
+
+  header.cover .subtitle { color: var(--muted); margin: 0 0 20px; }
+
+  .meta {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 6px 16px;
+    font-size: 14px;
+  }
+
+  .meta dt { color: var(--muted); }
+  .meta dd { margin: 0; }
+
+  .status {
+    display: inline-block;
+    margin-top: 18px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(63, 185, 80, 0.15);
+    border: 1px solid rgba(63, 185, 80, 0.5);
+    color: var(--ok);
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  h2 {
+    font-size: 21px;
+    margin: 44px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--accent);
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  h3 {
+    font-size: 16px;
+    margin: 26px 0 10px;
+    color: var(--accent-2);
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  p, li { color: var(--text); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  strong { color: #ffffff; }
+
+  code {
+    font: 13px/1.5 "SF Mono", Menlo, Consolas, monospace;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 5px;
+    color: #ffa657;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  pre code {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: #c9d1d9;
+  }
+
+  pre .c { color: var(--muted); }
+
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 12px 0 20px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    break-inside: auto;
+  }
+
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    background: var(--panel-2);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  td { background: var(--panel); }
+  tr:last-child td { border-bottom: 0; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .badge.ok { background: rgba(63, 185, 80, 0.15); color: var(--ok); border: 1px solid rgba(63, 185, 80, 0.45); }
+  .badge.fail { background: rgba(248, 81, 73, 0.15); color: var(--fail); border: 1px solid rgba(248, 81, 73, 0.45); }
+
+  ol.steps { padding-left: 22px; }
+  ol.steps li { margin-bottom: 8px; }
+  ol.steps li::marker { color: var(--accent); font-weight: 700; }
+
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 14px 0 22px;
+  }
+
+  .flow span {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .flow i { color: var(--muted); font-style: normal; }
+
+  .callout {
+    background: rgba(210, 153, 34, 0.08);
+    border: 1px solid rgba(210, 153, 34, 0.45);
+    border-left: 4px solid var(--warn);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    break-inside: avoid;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin: 14px 0 20px;
+  }
+
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+    break-inside: avoid;
+  }
+
+  .stat b { display: block; font-size: 26px; color: var(--ok); }
+  .stat small { color: var(--muted); }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+    background: #0d1117;
+  }
+
+  @media print {
+    body { font-size: 12.5px; }
+    main { max-width: none; padding: 0; }
+    header.cover { margin-top: 0; }
+    h2 { margin-top: 28px; }
+    a { color: var(--accent); }
+    a[href^="http"]::after { content: ""; }
+    .stats { grid-template-columns: repeat(4, 1fr); }
+    section.page-break { break-before: page; page-break-before: always; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header class="cover">
+  <h1>Salesforce delta deployment pipeline</h1>
+  <p class="subtitle">Merge to <code>main</code>, detect changed components, validate, deploy.</p>
+  <dl class="meta">
+    <dt>Project</dt><dd>demoDeployTest (Salesforce DX, API 66.0)</dd>
+    <dt>Repository</dt><dd><a href="https://github.com/svk-sf-arch/deploy-test-poc">svk-sf-arch/deploy-test-poc</a></dd>
+    <dt>Date</dt><dd>2026-11-07</dd>
+  </dl>
+  <span class="status">Working: first feature merge deployed, all Apex tests pass</span>
+</header>
+
+<section>
+  <h2>1. Summary</h2>
+  <p>When a pull request is merged into <code>main</code>, a GitHub Actions workflow finds the Salesforce components that changed, builds a <code>package.xml</code> for only those components using sfdx-git-delta (sgd), validates the deployment against the target org (dry run), and then deploys it.</p>
+  <div class="flow">
+    <span>PR merged to main</span><i>&rarr;</i>
+    <span>sgd builds package.xml</span><i>&rarr;</i>
+    <span>Dry run</span><i>&rarr;</i>
+    <span>Deploy to TargetDemoOrg</span>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>12</b><small>components deployed</small></div>
+    <div class="stat"><b>0</b><small>components deleted</small></div>
+    <div class="stat"><b>4 / 4</b><small>Apex tests passing</small></div>
+    <div class="stat"><b>100%</b><small>service coverage</small></div>
+  </div>
+</section>
+
+<section>
+  <h2>2. Orgs, repository and branches</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Source org alias</td><td><code>deployDemoTest</code></td></tr>
+      <tr><td>Source org URL</td><td><code>https://storm-da46cde7144416.my.salesforce.com</code></td></tr>
+      <tr><td>Target org alias</td><td><code>TargetDemoOrg</code></td></tr>
+      <tr><td>Target org URL</td><td><code>https://trailsignup-ad38b27e4f5ccb.my.salesforce.com</code> (Enterprise Edition, not a sandbox)</td></tr>
+      <tr><td>GitHub repository</td><td><code>svk-sf-arch/deploy-test-poc</code></td></tr>
+      <tr><td>Default branch</td><td><code>main</code> (changed from <code>sys/initial-commit</code>)</td></tr>
+      <tr><td>Pipeline branch (kept)</td><td><code>sys/github-action-setup</code></td></tr>
+      <tr><td>Feature branch</td><td><code>feature/demo-deploy</code></td></tr>
+      <tr><td>Salesforce project folder</td><td><code>demoDeployTest/</code> (inside the repository root)</td></tr>
+      <tr><td>Workflow file</td><td><code>.github/workflows/deploy-on-merge.yml</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>3. What was done, in order</h2>
+  <ol class="steps">
+    <li><strong>Authorized the source org</strong> as <code>deployDemoTest</code> with a web login. Use the <code>.my.salesforce.com</code> domain, not <code>.lightning.force.com</code>.</li>
+    <li><strong>Built a manifest of one user's work.</strong> Listed every metadata type in the source org and kept components created or last modified by user <code>005Ws00000BoCCYIA3</code> (Abhishek Kumar Raj). About 29,600 matched, mostly from the org template and managed packages. The final selection was the 53 components changed after the org was provisioned on 2026-06-16: the Bedrock Request feature, the standard Sales app, and 35 profiles. The manifest was later trimmed by hand to the core Bedrock components.</li>
+    <li><strong>Authorized the target org</strong> as <code>TargetDemoOrg</code>.</li>
+    <li><strong>Set the git identity</strong> to <code>svk-sf-arch &lt;skalsekar@salesforce.com&gt;</code>, globally and for this repository (it was the Kraft Heinz identity).</li>
+    <li><strong>Fixed GitHub authentication.</strong> The GitHub CLI and macOS Keychain were signing in as <code>Sushil-Kalsekar_kraft</code>. <code>svk-sf-arch</code> is now the active GitHub CLI account; the Kraft account is logged in but inactive.</li>
+    <li><strong>Created a <code>main</code> branch</strong> from the initial commit, pushed it, and made it the repository's default branch.</li>
+    <li><strong>Wrote the GitHub Actions workflow</strong> <code>deploy-on-merge.yml</code> (section 4).</li>
+    <li><strong>Created the GitHub environment <code>TargetDemoOrg</code></strong> and stored the target org's SFDX auth URL in it as the secret <code>TARGET_ORG_SFDX_AUTH_URL</code>.</li>
+    <li><strong>Merged <a href="https://github.com/svk-sf-arch/deploy-test-poc/pull/1">PR #1</a></strong> (add workflow). Its run failed: the Salesforce CLI crashed on Node 20.</li>
+    <li><strong>Merged <a href="https://github.com/svk-sf-arch/deploy-test-poc/pull/2">PR #2</a></strong> (Node 24). Its run succeeded and reported nothing to deploy.</li>
+    <li><strong>Merged <a href="https://github.com/svk-sf-arch/deploy-test-poc/pull/3">PR #3</a></strong> (Bedrock Request feature). Validation and deployment succeeded.</li>
+    <li><strong>Ran the Apex tests directly in the target org</strong>, because the deployment reported 0 tests run. All 4 passed, with 100% coverage.</li>
+  </ol>
+</section>
+
+<section class="page-break">
+  <h2>4. How the workflow works</h2>
+  <p><strong>Trigger:</strong> a pull request into <code>main</code> is closed <em>and</em> merged. Closing a pull request without merging does nothing.</p>
+  <table>
+    <thead><tr><th>Step</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td>Checkout</td><td>Checks out the merge commit with full git history (<code>fetch-depth: 0</code>).</td></tr>
+      <tr><td>Node.js</td><td>Installs Node 24. The current Salesforce CLI does not run on Node 20.</td></tr>
+      <tr><td>Install tools</td><td>Installs <code>@salesforce/cli</code> and the <code>sfdx-git-delta</code> plugin.</td></tr>
+      <tr><td>Authenticate</td><td>Logs in to the target org from the secret <code>TARGET_ORG_SFDX_AUTH_URL</code>, alias <code>targetOrg</code>.</td></tr>
+      <tr><td>Generate delta</td><td><code>sf sgd source delta</code> compares the pull request's base commit with the merge commit, only under <code>demoDeployTest/force-app</code>. Produces <code>package.xml</code> (added/changed) and <code>destructiveChanges.xml</code> (deleted).</td></tr>
+      <tr><td>Decide test level</td><td>No Apex changed: <code>NoTestRun</code>. Changed classes ending in <code>Test</code>: <code>RunSpecifiedTests</code> with those classes. Other Apex changes: <code>RunLocalTests</code>.</td></tr>
+      <tr><td>Dry run</td><td><code>sf project deploy start --dry-run</code> from <code>demoDeployTest</code>. Deletions are included only if there are any.</td></tr>
+      <tr><td>Deploy</td><td>The same command without <code>--dry-run</code>. Runs only if the dry run passed.</td></tr>
+      <tr><td>Nothing to deploy</td><td>If no Salesforce files changed, logs that and stops.</td></tr>
+      <tr><td>Upload artifact</td><td>Saves the generated manifests as the <code>delta-manifests</code> artifact.</td></tr>
+    </tbody>
+  </table>
+  <h3>Other settings</h3>
+  <ul>
+    <li>Runs one at a time (<code>concurrency: deploy-target-org</code>), so two merges never deploy at the same time.</li>
+    <li>Uses the GitHub environment <code>TargetDemoOrg</code>. Required reviewers can be added there to approve each deployment.</li>
+    <li>The comparison starts from the pull request's base commit, so components merged by other pull requests in the meantime may be deployed again. This is harmless and works for merge, squash and rebase merges.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>5. Results</h2>
+  <h3>Workflow runs</h3>
+  <table>
+    <thead><tr><th>Pull request</th><th>Run</th><th>Result</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>#1 Add delta deploy workflow</td><td>42355228867</td><td><span class="badge fail">Failed</span></td><td>Salesforce CLI crashed on Node 20 (<code>markAsUncloneable is not a function</code>).</td></tr>
+      <tr><td>#2 Update Node.js to 24</td><td>42355558930</td><td><span class="badge ok">Succeeded</span></td><td>No Salesforce changes, so nothing was deployed. Confirmed install and login.</td></tr>
+      <tr><td>#3 Bedrock Request feature</td><td>42355659177</td><td><span class="badge ok">Succeeded</span></td><td>12 components validated and deployed.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Feature deployment (PR #3)</h3>
+  <table>
+    <thead><tr><th>Item</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Components deployed</td><td>12</td></tr>
+      <tr><td>Components deleted</td><td>0</td></tr>
+      <tr><td>Test level chosen</td><td><code>RunSpecifiedTests BedrockRequestPriorityServiceTest</code></td></tr>
+      <tr><td>Dry run deploy ID</td><td><code>0Afbm00000n7NdBCAU</code> <span class="badge ok">Succeeded</span> 4m 47s</td></tr>
+      <tr><td>Deploy ID</td><td><code>0Afbm00000n7OMLCA2</code> <span class="badge ok">Succeeded</span> 1m 41s</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th>Type</th><th>Components</th></tr></thead>
+    <tbody>
+      <tr><td>CustomObject</td><td><code>Bedrock_Request__c</code></td></tr>
+      <tr><td>CustomField</td><td><code>Description__c</code>, <code>Priority__c</code>, <code>Request_Name__c</code>, <code>Request_Type__c</code>, <code>Reviewed_By_Automation__c</code>, <code>Status__c</code></td></tr>
+      <tr><td>ApexClass</td><td><code>BedrockRequestPriorityService</code>, <code>BedrockRequestPriorityServiceTest</code></td></tr>
+      <tr><td>Flow</td><td><code>Bedrock_Request_Priority_Review</code></td></tr>
+      <tr><td>ListView</td><td><code>Bedrock_Request__c.All</code></td></tr>
+      <tr><td>PermissionSet</td><td><code>Bedrock_Request_User</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Apex tests (run directly in the target org)</h3>
+  <table>
+    <thead><tr><th>Test method</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td><code>testHighPriorityRequiresReview</code></td><td><span class="badge ok">Pass</span></td></tr>
+      <tr><td><code>testCriticalPriorityRequiresReview</code></td><td><span class="badge ok">Pass</span></td></tr>
+      <tr><td><code>testMediumPriorityDoesNotRequireReview</code></td><td><span class="badge ok">Pass</span></td></tr>
+      <tr><td><code>testBulkPriorityEvaluation</code></td><td><span class="badge ok">Pass</span></td></tr>
+    </tbody>
+  </table>
+  <p><code>BedrockRequestPriorityService</code> coverage: 9 of 9 lines (100%).</p>
+</section>
+
+<section class="page-break">
+  <h2>6. Problems found and how they were fixed</h2>
+  <table>
+    <thead><tr><th>Problem</th><th>Cause</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td>Login with the Lightning URL fails</td><td>The CLI needs the My Domain login URL.</td><td>Use <code>https://&lt;domain&gt;.my.salesforce.com</code> as <code>--instance-url</code>.</td></tr>
+      <tr><td><code>No file found at manifest/package.xml</code></td><td>Command run from the repository root.</td><td>Run <code>sf</code> commands from <code>demoDeployTest/</code>.</td></tr>
+      <tr><td><code>fatal: invalid reference: main</code></td><td>No <code>main</code> branch existed.</td><td>Created and pushed <code>main</code>, then made it the default.</td></tr>
+      <tr><td>Commits and pushes used the Kraft identity</td><td>Global git config, GitHub CLI and Keychain were all set to Kraft.</td><td>Set the git identity to <code>svk-sf-arch</code>; switched the GitHub CLI account.</td></tr>
+      <tr><td>Secret upload returned 404</td><td>The <code>TargetDemoOrg</code> environment did not exist.</td><td>Created the environment, then set the secret.</td></tr>
+      <tr><td>First workflow run crashed</td><td>The current Salesforce CLI needs a newer Node.js.</td><td>Changed <code>node-version</code> from 20 to 24 (PR #2).</td></tr>
+      <tr><td>Deployment reported 0 tests run</td><td>Salesforce counted no tests even though the run asked for one.</td><td>Ran the tests directly: all pass, 100% coverage. Still worth watching.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>7. Everyday use</h2>
+  <h3>Ship a change</h3>
+  <ol class="steps">
+    <li>Create a branch from <code>main</code> and change files under <code>demoDeployTest/force-app</code>.</li>
+    <li>Push and open a pull request into <code>main</code>.</li>
+    <li>Merge it. The workflow validates and deploys only what changed.</li>
+    <li>Watch it on the <strong>Actions</strong> tab, or with <code>gh run watch</code>.</li>
+  </ol>
+
+  <h3>Useful commands</h3>
+  <p>Run <code>sf</code> commands from <code>demoDeployTest/</code>.</p>
+<pre><code><span class="c"># Log in to an org</span>
+sf org login web --alias TargetDemoOrg --instance-url https://trailsignup-ad38b27e4f5ccb.my.salesforce.com
+
+<span class="c"># Retrieve what the manifest lists</span>
+sf project retrieve start --manifest manifest/package.xml --target-org deployDemoTest
+
+<span class="c"># Deploy by hand with the same manifest</span>
+sf project deploy start --manifest manifest/package.xml --target-org TargetDemoOrg --test-level RunSpecifiedTests --tests BedrockRequestPriorityServiceTest
+
+<span class="c"># Refresh the GitHub secret (never shows the URL)</span>
+sf org auth show-sfdx-auth-url --target-org TargetDemoOrg --no-prompt --json \
+  | python3 -c "import sys,json;print(json.load(sys.stdin)['result']['sfdxAuthUrl'])" \
+  | gh secret set TARGET_ORG_SFDX_AUTH_URL --env TargetDemoOrg --repo svk-sf-arch/deploy-test-poc
+
+<span class="c"># Run the Apex tests in the target org</span>
+sf apex run test --class-names BedrockRequestPriorityServiceTest --target-org TargetDemoOrg --code-coverage --wait 10
+
+<span class="c"># Watch workflow runs</span>
+gh run list --workflow deploy-on-merge.yml --repo svk-sf-arch/deploy-test-poc
+gh run watch --repo svk-sf-arch/deploy-test-poc</code></pre>
+</section>
+
+<section>
+  <h2>8. Open items</h2>
+  <div class="callout"><strong>Revoke the exposed auth URLs.</strong> Two SFDX auth URLs were pasted into chat: one for the Kraft Heinz UAT sandbox and one for the target org. Run <code>sf org logout</code> for each org and log in again, then refresh the GitHub secret.</div>
+  <ol class="steps">
+    <li><strong>Deployment test count.</strong> The deployment ran with <code>RunSpecifiedTests</code> but Salesforce recorded 0 tests. The tests pass when run directly. Check the next Apex deployment.</li>
+    <li><strong>Local leftover workflow file.</strong> An untracked copy of <code>.github/</code> (still Node 20) sits in the working folder on <code>feature/demo-deploy</code>. Delete it before switching branches, or <code>git switch</code> will refuse.</li>
+    <li><strong>Local branches are behind.</strong> Local <code>main</code> is 6 commits behind GitHub, and <code>sys/github-action-setup</code> has diverged by one commit. Pull both.</li>
+    <li><strong>Optional: approval gate.</strong> Add required reviewers to the <code>TargetDemoOrg</code> environment.</li>
+    <li><strong>Optional: deletions.</strong> Remove the <code>--post-destructive-changes</code> lines if deletions should not be deployed.</li>
+  </ol>
+</section>
+
+<footer>demoDeployTest &middot; Salesforce delta deployment pipeline &middot; 2026-11-07</footer>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,210 @@
+SALESFORCE DELTA DEPLOYMENT PIPELINE
+====================================
+
+Project:    demoDeployTest (Salesforce DX, API 66.0)
+Repository: https://github.com/svk-sf-arch/deploy-test-poc
+Date:       2026-11-07
+Status:     Working. The first feature merge deployed to the target org,
+            and all Apex tests pass.
+
+
+1. SUMMARY
+----------
+When a pull request is merged into main, a GitHub Actions workflow finds
+the Salesforce components that changed, builds a package.xml for only those
+components using sfdx-git-delta (sgd), validates the deployment against the
+target org (dry run), and then deploys it.
+
+The first real run deployed the Bedrock Request feature (12 components) to
+the target org. Validation and deployment both succeeded. All 4 Apex tests
+pass and BedrockRequestPriorityService has 100% code coverage.
+
+
+2. ORGS, REPOSITORY AND BRANCHES
+--------------------------------
+Source org alias ........ deployDemoTest
+Source org URL .......... https://storm-da46cde7144416.my.salesforce.com
+Target org alias ........ TargetDemoOrg
+Target org URL .......... https://trailsignup-ad38b27e4f5ccb.my.salesforce.com
+                          (Enterprise Edition, not a sandbox)
+GitHub repository ....... svk-sf-arch/deploy-test-poc
+Default branch .......... main (changed from sys/initial-commit)
+Pipeline branch (kept) .. sys/github-action-setup
+Feature branch .......... feature/demo-deploy
+Salesforce project ...... demoDeployTest/ (inside the repository root)
+Workflow file ........... .github/workflows/deploy-on-merge.yml
+
+
+3. WHAT WAS DONE, IN ORDER
+--------------------------
+ 1. Authorized the source org as deployDemoTest with a web login. Use the
+    .my.salesforce.com domain, not .lightning.force.com.
+ 2. Built a manifest of one user's work. Listed every metadata type in the
+    source org and kept components created or last modified by user
+    005Ws00000BoCCYIA3 (Abhishek Kumar Raj). About 29,600 matched, mostly
+    from the org template and managed packages. The final selection was the
+    53 components changed after the org was provisioned on 2026-06-16: the
+    Bedrock Request feature, the standard Sales app, and 35 profiles. The
+    manifest was later trimmed by hand to the core Bedrock components.
+ 3. Authorized the target org as TargetDemoOrg.
+ 4. Set the git identity to svk-sf-arch <skalsekar@salesforce.com>, both
+    globally and for this repository (it was the Kraft Heinz identity).
+ 5. Fixed GitHub authentication. The GitHub CLI and macOS Keychain were
+    signing in as Sushil-Kalsekar_kraft. svk-sf-arch is now the active
+    GitHub CLI account; the Kraft account is logged in but inactive.
+ 6. Created a main branch from the initial commit, pushed it, and made it
+    the repository's default branch.
+ 7. Wrote the GitHub Actions workflow deploy-on-merge.yml (section 4).
+ 8. Created the GitHub environment TargetDemoOrg and stored the target org's
+    SFDX auth URL in it as the secret TARGET_ORG_SFDX_AUTH_URL.
+ 9. Merged PR #1 (add workflow). Its run failed: the Salesforce CLI crashed
+    on Node 20.
+10. Merged PR #2 (Node 24). Its run succeeded and reported nothing to deploy.
+11. Merged PR #3 (Bedrock Request feature). Validation and deployment
+    succeeded.
+12. Ran the Apex tests directly in the target org, because the deployment
+    reported 0 tests run. All 4 passed, with 100% coverage.
+
+
+4. HOW THE WORKFLOW WORKS
+-------------------------
+Trigger: a pull request into main is closed AND merged. Closing a pull
+request without merging does nothing.
+
+Checkout ............ Checks out the merge commit with full git history.
+Node.js ............. Installs Node 24 (the Salesforce CLI fails on Node 20).
+Install tools ....... Installs @salesforce/cli and the sfdx-git-delta plugin.
+Authenticate ........ Logs in to the target org from the secret
+                      TARGET_ORG_SFDX_AUTH_URL, alias targetOrg.
+Generate delta ...... sf sgd source delta compares the pull request's base
+                      commit with the merge commit, only under
+                      demoDeployTest/force-app. Produces package.xml
+                      (added/changed) and destructiveChanges.xml (deleted).
+Decide test level ... No Apex changed: NoTestRun.
+                      Changed classes ending in "Test": RunSpecifiedTests
+                      with those classes.
+                      Other Apex changes: RunLocalTests.
+Dry run ............. sf project deploy start --dry-run from demoDeployTest.
+                      Deletions are included only if there are any.
+Deploy .............. Same command without --dry-run. Runs only if the dry
+                      run passed.
+Nothing to deploy ... If no Salesforce files changed, logs that and stops.
+Upload artifact ..... Saves the manifests as the "delta-manifests" artifact.
+
+Other settings
+- Runs one at a time, so two merges never deploy at the same time.
+- Uses the GitHub environment TargetDemoOrg. Required reviewers can be added
+  there to approve each deployment.
+- The comparison starts from the pull request's base commit, so components
+  merged by other pull requests in the meantime may be deployed again. This
+  is harmless and works for merge, squash and rebase merges.
+
+
+5. RESULTS
+----------
+Workflow runs
+  PR #1 Add delta deploy workflow   run 42355228867   FAILED
+        Salesforce CLI crashed on Node 20 (markAsUncloneable is not a
+        function).
+  PR #2 Update Node.js to 24        run 42355558930   SUCCEEDED
+        No Salesforce changes; confirmed install and login.
+  PR #3 Bedrock Request feature     run 42355659177   SUCCEEDED
+        12 components validated and deployed.
+
+Feature deployment (PR #3)
+  Components deployed .. 12
+  Components deleted ... 0
+  Test level chosen .... RunSpecifiedTests BedrockRequestPriorityServiceTest
+  Dry run deploy ID .... 0Afbm00000n7NdBCAU  succeeded, 4m 47s
+  Deploy ID ............ 0Afbm00000n7OMLCA2  succeeded, 1m 41s
+
+  Components:
+  - Bedrock_Request__c (object)
+  - Fields: Description__c, Priority__c, Request_Name__c, Request_Type__c,
+    Reviewed_By_Automation__c, Status__c
+  - Apex: BedrockRequestPriorityService, BedrockRequestPriorityServiceTest
+  - Flow: Bedrock_Request_Priority_Review
+  - List view: Bedrock_Request__c.All
+  - Permission set: Bedrock_Request_User
+
+Apex tests (run directly in the target org)
+  testHighPriorityRequiresReview ........... Pass
+  testCriticalPriorityRequiresReview ....... Pass
+  testMediumPriorityDoesNotRequireReview ... Pass
+  testBulkPriorityEvaluation ............... Pass
+  BedrockRequestPriorityService coverage: 9 of 9 lines (100%)
+
+
+6. PROBLEMS FOUND AND HOW THEY WERE FIXED
+-----------------------------------------
+- Login with the Lightning URL fails.
+  Fix: use https://<domain>.my.salesforce.com as --instance-url.
+- "No file found at manifest/package.xml".
+  Cause: command run from the repository root.
+  Fix: run sf commands from demoDeployTest/.
+- "fatal: invalid reference: main".
+  Cause: no main branch existed.
+  Fix: created and pushed main, then made it the default.
+- Commits and pushes used the Kraft identity.
+  Fix: set the git identity to svk-sf-arch and switched the GitHub CLI
+  account.
+- Secret upload returned 404.
+  Cause: the TargetDemoOrg environment did not exist.
+  Fix: created the environment, then set the secret.
+- First workflow run crashed.
+  Cause: the current Salesforce CLI needs a newer Node.js.
+  Fix: node-version 20 -> 24 (PR #2).
+- Deployment reported 0 tests run.
+  Fix: ran the tests directly; all pass with 100% coverage. Still worth
+  watching (see section 8).
+
+
+7. EVERYDAY USE
+---------------
+Ship a change
+  1. Create a branch from main; change files under demoDeployTest/force-app.
+  2. Push and open a pull request into main.
+  3. Merge it. The workflow validates and deploys only what changed.
+  4. Watch it on the Actions tab, or with "gh run watch".
+
+Useful commands (run sf commands from demoDeployTest/)
+
+  Log in to an org:
+    sf org login web --alias TargetDemoOrg --instance-url https://trailsignup-ad38b27e4f5ccb.my.salesforce.com
+
+  Retrieve what the manifest lists:
+    sf project retrieve start --manifest manifest/package.xml --target-org deployDemoTest
+
+  Deploy by hand:
+    sf project deploy start --manifest manifest/package.xml --target-org TargetDemoOrg --test-level RunSpecifiedTests --tests BedrockRequestPriorityServiceTest
+
+  Refresh the GitHub secret (never shows the URL):
+    sf org auth show-sfdx-auth-url --target-org TargetDemoOrg --no-prompt --json \
+      | python3 -c "import sys,json;print(json.load(sys.stdin)['result']['sfdxAuthUrl'])" \
+      | gh secret set TARGET_ORG_SFDX_AUTH_URL --env TargetDemoOrg --repo svk-sf-arch/deploy-test-poc
+
+  Run the Apex tests in the target org:
+    sf apex run test --class-names BedrockRequestPriorityServiceTest --target-org TargetDemoOrg --code-coverage --wait 10
+
+  Watch workflow runs:
+    gh run list --workflow deploy-on-merge.yml --repo svk-sf-arch/deploy-test-poc
+    gh run watch --repo svk-sf-arch/deploy-test-poc
+
+
+8. OPEN ITEMS
+-------------
+1. Revoke the exposed auth URLs. Two SFDX auth URLs were pasted into chat:
+   one for the Kraft Heinz UAT sandbox and one for the target org. Run
+   "sf org logout" for each org and log in again, then refresh the GitHub
+   secret.
+2. Deployment test count. The deployment ran with RunSpecifiedTests but
+   Salesforce recorded 0 tests. The tests pass when run directly. Check the
+   next Apex deployment.
+3. Local leftover workflow file. An untracked copy of .github/ (still Node
+   20) sits in the working folder on feature/demo-deploy. Delete it before
+   switching branches, or git switch will refuse.
+4. Local branches are behind. Local main is 6 commits behind GitHub, and
+   sys/github-action-setup has diverged by one commit. Pull both.
+5. Optional: add required reviewers to the TargetDemoOrg environment.
+6. Optional: remove the --post-destructive-changes lines if deletions should
+   not be deployed.

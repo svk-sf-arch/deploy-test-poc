@@ -7,3 +7,12 @@ Format: date | time | action | result
 2026-11-07 | 12:56 | Reviewed the project layout (Salesforce DX project demoDeployTest, API version 66.0). | Confirmed there was no documentation folder yet.
 2026-11-07 | 12:56 | Created the documentation folder and the tracking files. | Added ACTIONS.txt (this log), SUMMARY.txt, SUMMARY.md, and a contact details file.
 2026-11-07 | 12:59 | Removed the contact details file at the user's request. | Deleted the file and removed every reference to the contact from the documentation.
+2026-11-07 | 12:53 | Built manifest/package.xml from components changed by user 005Ws00000BoCCYIA3 in deployDemoTest. | 53 components changed after org provisioning (Bedrock Request feature, Sales app, 35 profiles). Later trimmed by hand.
+2026-11-07 | 13:25 | Set git identity to svk-sf-arch and switched the GitHub CLI account from the Kraft account. | Commits and GitHub access now use svk-sf-arch.
+2026-11-07 | 13:37 | Made main the default branch on GitHub. | Default changed from sys/initial-commit to main.
+2026-11-07 | 13:40 | Added .github/workflows/deploy-on-merge.yml (sgd delta, dry run, deploy on merge to main). | Merged in PR #1. First run failed: Salesforce CLI crashes on Node 20.
+2026-11-07 | 13:50 | Created GitHub environment TargetDemoOrg and secret TARGET_ORG_SFDX_AUTH_URL. | Secret stored.
+2026-11-07 | 13:57 | Switched the workflow to Node 24 (PR #2). | Run succeeded, nothing to deploy.
+2026-11-07 | 13:58 | Merged the Bedrock Request feature (PR #3). | 12 components validated and deployed to TargetDemoOrg.
+2026-11-07 | 14:10 | Ran BedrockRequestPriorityServiceTest in TargetDemoOrg. | 4 of 4 tests pass, 100% coverage. Deployment had recorded 0 tests.
+2026-11-07 | 14:20 | Documented the pipeline. | Added DEPLOYMENT_PIPELINE .txt, .md, .html and .docx.
