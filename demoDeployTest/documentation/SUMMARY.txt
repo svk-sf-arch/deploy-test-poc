@@ -1,0 +1,16 @@
+Project summary
+Project: demoDeployTest
+Location: demoDeployTest (Salesforce DX project)
+Last updated: 2026-11-07
+
+What this project is
+A Salesforce DX project named demoDeployTest. Source API version is 66.0. Default package directory is force-app. Login URL is https://login.salesforce.com.
+
+Documentation
+A documentation folder tracks work as it happens.
+- ACTIONS.txt is the running log of each action.
+- SUMMARY.txt is this plain-text summary.
+- SUMMARY.md is the same summary in markdown, kept for git.
+
+Current status
+Documentation tracking is in place. No application code has been changed.
